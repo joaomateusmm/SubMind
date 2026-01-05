@@ -17,7 +17,7 @@ export default function HeroSection() {
     { src: "/images/icons/fivem.svg", alt: "Contas fivem", href: "/catalogo" },
     { src: "/images/icons/roblox.svg", alt: "Roblox", href: "/catalogo" },
     { src: "/images/icons/valorant.svg", alt: "Valorant", href: "#" },
-    { src: "/images/icons/Discord.svg", alt: "Contas Discord", href: "#" },
+    { src: "/images/icons/discord.svg", alt: "Contas Discord", href: "#" },
     { src: "/images/icons/netflix.svg", alt: "Contas Netflix", href: "#" },
     { src: "/images/icons/amazom.svg", alt: "Contas Amazon", href: "#" },
   ];
