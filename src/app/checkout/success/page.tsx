@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, CheckCircle, ShoppingBag } from "lucide-react";
+import { ArrowLeft, ShoppingBag } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect } from "react";
