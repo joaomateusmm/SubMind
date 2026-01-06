@@ -65,7 +65,11 @@ export async function createCheckoutSession(items: CartItemInput[]) {
     handle: process.env.INFINITEPAY_HANDLE,
     order_nsu: newOrder.id,
     amount: totalAmount,
-    redirect_url: `${baseUrl}/minha-conta/compras`,
+
+    // --- MUDANÇA AQUI ---
+    // Alterado de '/minha-conta/compras' para '/checkout/success'
+    redirect_url: `${baseUrl}/checkout/success`,
+    // --------------------
 
     webhook_url: `${baseUrl}/api/webhooks/infinitepay`,
 
