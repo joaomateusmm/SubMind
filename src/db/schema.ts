@@ -1,3 +1,4 @@
+import { relations } from "drizzle-orm";
 import {
   boolean,
   integer,
@@ -110,40 +111,26 @@ export const product = pgTable("product", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
-
   name: text("name").notNull(),
   description: text("description"),
-
   price: integer("price").notNull(),
   discountPrice: integer("discountPrice"),
-
   downloadUrl: text("downloadUrl"),
-
   images: text("images").array(),
-  categories: text("categories").array(), // Já era array
-
-  // Vínculo com Jogo (Mantém único, geralmente um produto é de um jogo só)
+  categories: text("categories").array(),
   gameId: text("gameId").references(() => game.id, { onDelete: "set null" }),
-
-  // --- MUDANÇA AQUI: De 'streamingId' para 'streamings' (Array) ---
-  // Como é um array de IDs, não usamos .references() direto aqui da mesma forma simples
-  // O Drizzle/Postgres trata arrays de texto. A integridade fica por conta da aplicação ou tabela de ligação (NxN).
-  // Para simplificar e manter igual a categorias, usaremos array de texto.
   streamings: text("streamings").array(),
-
   paymentLink: text("paymentLink").notNull(),
   deliveryMode: text("deliveryMode").notNull().default("email"),
   paymentMethods: text("paymentMethods")
     .array()
     .notNull()
     .default(["Pix", "Cartão de Crédito", "Cartão de Débito", "Boleto"]),
-
   stock: integer("stock").default(0),
   isStockUnlimited: boolean("isStockUnlimited").notNull().default(false),
-
   status: text("status").notNull().default("draft"),
   sales: integer("sales").notNull().default(0),
-
+  affiliateRate: integer("affiliateRate").default(10),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt")
     .notNull()
@@ -214,3 +201,70 @@ export const orderItem = pgTable("orderItem", {
   quantity: integer("quantity").notNull(),
   image: text("image"),
 });
+
+export const affiliate = pgTable("affiliate", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("userId")
+    .notNull()
+    .unique() // Garante que um usuário só tem 1 conta de afiliado
+    .references(() => user.id, { onDelete: "cascade" }),
+  code: text("code").notNull().unique(),
+  pixKey: text("pixKey"),
+  pixKeyType: text("pixKeyType"), // email, cpf, phone, random
+  balance: integer("balance").notNull().default(0),
+  totalEarnings: integer("totalEarnings").notNull().default(0),
+  status: text("status").notNull().default("active"), // active, suspended, banned
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt")
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+export const commission = pgTable("commission", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  affiliateId: text("affiliateId")
+    .notNull()
+    .references(() => affiliate.id, { onDelete: "cascade" }),
+  orderId: text("orderId")
+    .notNull()
+    .references(() => order.id, { onDelete: "cascade" }),
+  amount: integer("amount").notNull(),
+  description: text("description"),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt")
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+export const userRelations = relations(user, ({ one }) => ({
+  affiliateProfile: one(affiliate, {
+    fields: [user.id],
+    references: [affiliate.userId],
+  }),
+}));
+
+export const affiliateRelations = relations(affiliate, ({ one, many }) => ({
+  user: one(user, {
+    fields: [affiliate.userId],
+    references: [user.id],
+  }),
+  commissions: many(commission), // <--- Isto permite usar with: { commissions: true }
+}));
+
+export const commissionRelations = relations(commission, ({ one }) => ({
+  affiliate: one(affiliate, {
+    fields: [commission.affiliateId],
+    references: [affiliate.id],
+  }),
+  order: one(order, {
+    fields: [commission.orderId],
+    references: [order.id],
+  }),
+}));

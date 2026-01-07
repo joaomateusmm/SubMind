@@ -1,9 +1,17 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm"; // Adicionei 'sql' para somar o saldo
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 
 import { db } from "@/db";
-import { order, orderItem, product, user } from "@/db/schema";
+// Adicionei 'commission' e 'affiliate' aos imports
+import {
+  affiliate,
+  commission,
+  order,
+  orderItem,
+  product,
+  user,
+} from "@/db/schema";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -47,6 +55,43 @@ export async function POST(request: Request) {
       })
       .where(eq(order.id, orderId));
 
+    // --- NOVA LÓGICA: PROCESSAR COMISSÃO DE AFILIADO ---
+    try {
+      // Verifica se existe uma comissão pendente para este pedido
+      const pendingCommission = await db.query.commission.findFirst({
+        where: eq(commission.orderId, orderId),
+      });
+
+      // Se existir e estiver pendente, liberamos o dinheiro
+      if (pendingCommission && pendingCommission.status === "pending") {
+        console.log(
+          `💰 Processando comissão de: R$ ${(pendingCommission.amount / 100).toFixed(2)}`,
+        );
+
+        // A. Marca a comissão como disponível
+        await db
+          .update(commission)
+          .set({ status: "available" })
+          .where(eq(commission.id, pendingCommission.id));
+
+        // B. Atualiza o saldo do afiliado (Soma atômica para evitar erros de cálculo)
+        await db
+          .update(affiliate)
+          .set({
+            balance: sql`${affiliate.balance} + ${pendingCommission.amount}`,
+            totalEarnings: sql`${affiliate.totalEarnings} + ${pendingCommission.amount}`,
+          })
+          .where(eq(affiliate.id, pendingCommission.affiliateId));
+
+        console.log("✅ Saldo do afiliado atualizado!");
+      }
+    } catch (commError) {
+      // Se der erro na comissão, não queremos travar o envio do produto (email)
+      // Apenas logamos o erro para resolver manualmente depois se necessário
+      console.error("❌ Erro ao processar comissão:", commError);
+    }
+    // ---------------------------------------------------
+
     // 3. Buscar os produtos e seus links de download
     const orderItemsList = await db
       .select({
@@ -74,11 +119,10 @@ export async function POST(request: Request) {
       where: eq(user.id, existingOrder.userId),
     });
 
-    // 5. ENVIAR O E-MAIL (Usando HTML String para evitar erro de renderização)
+    // 5. ENVIAR O E-MAIL
     if (customer?.email) {
       console.log(`📧 Preparando email para: ${customer.email}`);
 
-      // Geramos a lista de produtos em HTML dinamicamente
       const productsHtml = productsWithLinks
         .map(
           (p) => `
@@ -94,7 +138,6 @@ export async function POST(request: Request) {
         )
         .join("");
 
-      // Montamos o corpo final do email
       const emailHtml = `
         <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto;">
           <h1 style="color: #D00000;">Pagamento Confirmado! 🚀</h1>
@@ -113,12 +156,11 @@ export async function POST(request: Request) {
         </div>
       `;
 
-      // Envia usando a Resend
       await resend.emails.send({
-        from: "SubMind Store <onboarding@resend.dev>", // Obrigatório no modo teste
-        to: [customer.email], // No modo teste, deve ser seu email (joaomateusmb@gmail.com)
+        from: "SubMind Store <onboarding@resend.dev>",
+        to: [customer.email],
         subject: "Seu pedido está aqui! 📦",
-        html: emailHtml, // Enviamos a string HTML direta
+        html: emailHtml,
       });
 
       console.log(`✅ Email enviado com sucesso para ${customer.email}`);

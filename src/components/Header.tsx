@@ -390,7 +390,7 @@ export function Header() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <HeaderLink href="/enterprise">Seja Afiliado</HeaderLink>
+            <HeaderLink href="/afiliados">Seja Afiliado</HeaderLink>
           </nav>
 
           {/* Área de Autenticação e Ícones */}

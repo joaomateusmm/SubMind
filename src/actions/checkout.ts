@@ -1,10 +1,10 @@
 "use server";
 
-import { eq } from "drizzle-orm";
-import { headers } from "next/headers";
+import { eq, inArray } from "drizzle-orm";
+import { cookies,headers } from "next/headers"; // Adicionado cookies
 
 import { db } from "@/db";
-import { order, orderItem } from "@/db/schema";
+import { affiliate, commission, order, orderItem, product } from "@/db/schema"; // Importar tabelas novas
 import { auth } from "@/lib/auth";
 
 // Tipo esperado dos itens do carrinho
@@ -27,7 +27,26 @@ export async function createCheckoutSession(items: CartItemInput[]) {
 
   const user = session.user;
 
-  // 1. Calcular Total e garantir inteiro
+  // --- 1. LÓGICA DE AFILIADOS (INÍCIO) ---
+  const cookieStore = await cookies();
+  const affiliateCode = cookieStore.get("affiliate_code")?.value;
+
+  let activeAffiliate = null;
+
+  if (affiliateCode) {
+    // Busca o afiliado pelo código do cookie
+    activeAffiliate = await db.query.affiliate.findFirst({
+      where: eq(affiliate.code, affiliateCode),
+    });
+
+    // Opcional: Impedir que o afiliado ganhe comissão da própria compra
+    if (activeAffiliate && activeAffiliate.userId === user.id) {
+      activeAffiliate = null;
+    }
+  }
+  // --- FIM LÓGICA DE AFILIADOS (PARTE 1) ---
+
+  // 2. Calcular Total e garantir inteiro
   const totalAmount = Math.round(
     items.reduce((acc, item) => acc + item.price * item.quantity, 0),
   );
@@ -36,7 +55,7 @@ export async function createCheckoutSession(items: CartItemInput[]) {
     throw new Error("O valor mínimo para transação é R$ 1,00");
   }
 
-  // 2. Criar Pedido no Banco
+  // 3. Criar Pedido no Banco
   const [newOrder] = await db
     .insert(order)
     .values({
@@ -46,7 +65,7 @@ export async function createCheckoutSession(items: CartItemInput[]) {
     })
     .returning();
 
-  // 3. Salvar Itens
+  // 4. Salvar Itens do Pedido
   await db.insert(orderItem).values(
     items.map((item) => ({
       orderId: newOrder.id,
@@ -58,46 +77,85 @@ export async function createCheckoutSession(items: CartItemInput[]) {
     })),
   );
 
+  // --- 5. CALCULAR E SALVAR COMISSÃO (IMPORTANTE) ---
+  if (activeAffiliate) {
+    try {
+      // Precisamos buscar os produtos reais no DB para pegar a % de comissão (affiliateRate)
+      // Não confiamos apenas no front-end para taxas de comissão
+      const productIds = items.map((i) => i.id);
+
+      const dbProducts = await db
+        .select()
+        .from(product)
+        .where(inArray(product.id, productIds));
+
+      let totalCommission = 0;
+
+      // Calcula comissão item por item
+      for (const item of items) {
+        const dbProd = dbProducts.find((p) => p.id === item.id);
+
+        // Se o produto não tiver taxa definida, usa 10% (ou 0 se preferir)
+        const rate = dbProd?.affiliateRate ?? 10;
+
+        const itemTotal = item.price * item.quantity;
+        const commissionValue = Math.round(itemTotal * (rate / 100));
+
+        totalCommission += commissionValue;
+      }
+
+      // Se gerou comissão maior que 0, salva no banco
+      if (totalCommission > 0) {
+        await db.insert(commission).values({
+          affiliateId: activeAffiliate.id,
+          orderId: newOrder.id,
+          amount: totalCommission,
+          status: "pending", // Importante: Começa pendente até o pagamento ser confirmado
+          description: `Venda via link de afiliado: ${affiliateCode}`,
+        });
+
+        console.log(
+          `✅ Comissão de ${(totalCommission / 100).toFixed(2)} registrada para ${affiliateCode}`,
+        );
+      }
+    } catch (error) {
+      // Não queremos travar a venda se der erro na comissão, apenas logamos
+      console.error("Erro ao gerar comissão:", error);
+    }
+  }
+  // --- FIM LÓGICA DE AFILIADOS ---
+
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
-  // 4. Preparar Payload LIMPO para InfinitePay
+  // 6. Preparar Payload LIMPO para InfinitePay
   const infinitePayPayload = {
     handle: process.env.INFINITEPAY_HANDLE,
     order_nsu: newOrder.id,
     amount: totalAmount,
-
-    // --- MUDANÇA AQUI ---
-    // Alterado de '/minha-conta/compras' para '/checkout/success'
     redirect_url: `${baseUrl}/checkout/success`,
-    // --------------------
-
     webhook_url: `${baseUrl}/api/webhooks/infinitepay`,
-
     items: items.map((item) => ({
       quantity: item.quantity,
       price: Math.round(item.price),
-      description: item.name.substring(0, 250), // Segurança para nomes longos
+      description: item.name.substring(0, 250),
     })),
-
-    // CORREÇÃO: Enviando APENAS dados essenciais para produtos digitais
     customer: {
       name: user.name,
       email: user.email,
-      // Telefone e Endereço REMOVIDOS para evitar erro 422
     },
-
     address: {
-      line1: "Produto Digital - Entrega via Email", // Rua
-      line2: "Loja SubMind", // Complemento
-      zip: "60000000", // CEP Genérico (Fortaleza) ou o seu
+      line1: "Produto Digital - Entrega via Email",
+      line2: "Loja SubMind",
+      zip: "60000000",
       city: "Fortaleza",
       state: "CE",
       country: "BR",
     },
-
     metadata: {
       source: "submind_site",
       user_id: user.id,
+      // Opcional: Enviar ID do afiliado nos metadados da InfinitePay também
+      affiliate_id: activeAffiliate?.id || "",
     },
   };
 
@@ -120,7 +178,6 @@ export async function createCheckoutSession(items: CartItemInput[]) {
       throw new Error(data.message || "Erro ao criar pagamento");
     }
 
-    // 5. Atualizar o pedido com o link
     await db
       .update(order)
       .set({ infinitePayUrl: data.url })
