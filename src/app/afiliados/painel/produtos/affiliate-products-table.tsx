@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Copy, ImageIcon, Search } from "lucide-react"; // Ícones novos
+import { Check, Copy, ImageIcon, Search } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -21,14 +21,15 @@ interface ProductData {
   id: string;
   name: string;
   price: number;
+  discountPrice: number | null; // <--- ADICIONADO: O preço promocional
   images: string[] | null;
-  affiliateRate: number | null; // A porcentagem específica do produto
+  affiliateRate: number | null;
 }
 
 interface AffiliateProductsTableProps {
   data: ProductData[];
-  affiliateCode: string; // O código do afiliado (ex: JOAO-123)
-  domain: string; // O domínio do site (ex: https://submind.store)
+  affiliateCode: string;
+  domain: string;
 }
 
 export function AffiliateProductsTable({
@@ -39,29 +40,28 @@ export function AffiliateProductsTable({
   const [searchTerm, setSearchTerm] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Filtragem simples no front-end
   const filteredData = data.filter((item) =>
     item.name.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
-  // Função para copiar o link gerado
   const handleCopyLink = (productId: string) => {
-    // Constrói o link: https://site.com/produto/ID-DO-PRODUTO?ref=CODIGO
-    // Ajuste '/produto/' conforme a sua rota real de detalhes do produto
     const link = `${domain}/produto/${productId}?ref=${affiliateCode}`;
-
     navigator.clipboard.writeText(link);
-
-    // Feedback visual
     setCopiedId(productId);
     toast.success("Link de afiliado copiado!");
-
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  // Função auxiliar para formatar dinheiro
+  const formatMoney = (val: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(val / 100);
   };
 
   return (
     <div className="space-y-4">
-      {/* --- BARRA DE BUSCA --- */}
       <div className="flex items-center justify-between">
         <div className="relative w-full md:w-72">
           <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-neutral-500" />
@@ -72,11 +72,8 @@ export function AffiliateProductsTable({
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-
-        {/* Espaço para filtros futuros */}
       </div>
 
-      {/* --- TABELA --- */}
       <div className="overflow-hidden rounded-xl border border-white/10 bg-[#0A0A0A]">
         <Table>
           <TableHeader className="bg-white/5 hover:bg-white/5">
@@ -84,7 +81,7 @@ export function AffiliateProductsTable({
               <TableHead className="text-neutral-400">Produto</TableHead>
               <TableHead className="text-neutral-400">Comissão (%)</TableHead>
               <TableHead className="text-right text-neutral-400">
-                Preço
+                Preço Atual
               </TableHead>
               <TableHead className="text-right text-neutral-400">
                 Você Ganha
@@ -112,16 +109,22 @@ export function AffiliateProductsTable({
                 const mainImage =
                   item.images && item.images.length > 0 ? item.images[0] : null;
 
-                // Cálculo de comissão (Usa a do produto ou 10% padrão)
+                // --- LÓGICA DE PREÇO CORRIGIDA ---
+                // Se discountPrice existir (e não for zero/null), usamos ele. Senão, usamos price.
+                const effectivePrice = item.discountPrice
+                  ? item.discountPrice
+                  : item.price;
+
                 const rate = item.affiliateRate ?? 10;
-                const commissionValue = (item.price * rate) / 100;
+
+                // Calculamos a comissão baseada no preço efetivo (o que o cliente paga)
+                const commissionValue = (effectivePrice * rate) / 100;
 
                 return (
                   <TableRow
                     key={item.id}
                     className="border-white/10 transition-colors hover:bg-white/5"
                   >
-                    {/* Imagem + Nome */}
                     <TableCell className="font-medium text-white">
                       <div className="flex items-center gap-3">
                         <div className="relative h-10 w-13 shrink-0 overflow-hidden rounded-md border border-white/10 bg-white/5">
@@ -144,7 +147,6 @@ export function AffiliateProductsTable({
                       </div>
                     </TableCell>
 
-                    {/* Taxa % */}
                     <TableCell>
                       <Badge
                         variant="secondary"
@@ -154,23 +156,31 @@ export function AffiliateProductsTable({
                       </Badge>
                     </TableCell>
 
-                    {/* Preço Original */}
-                    <TableCell className="text-right font-mono text-sm text-neutral-400">
-                      {new Intl.NumberFormat("pt-BR", {
-                        style: "currency",
-                        currency: "BRL",
-                      }).format(item.price / 100)}
+                    {/* Preço com tratamento visual de Promoção */}
+                    <TableCell className="text-right font-mono text-sm">
+                      {item.discountPrice ? (
+                        <div className="flex flex-col items-end">
+                          {/* Preço original riscado */}
+                          <span className="text-xs text-neutral-600 line-through decoration-neutral-600">
+                            {formatMoney(item.price)}
+                          </span>
+                          {/* Preço novo em destaque */}
+                          <span className="text-neutral-300">
+                            {formatMoney(item.discountPrice)}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-neutral-400">
+                          {formatMoney(item.price)}
+                        </span>
+                      )}
                     </TableCell>
 
-                    {/* Valor da Comissão (Destaque) */}
+                    {/* Comissão Calculada Corretamente */}
                     <TableCell className="text-right font-mono font-bold text-green-400">
-                      {new Intl.NumberFormat("pt-BR", {
-                        style: "currency",
-                        currency: "BRL",
-                      }).format(commissionValue / 100)}
+                      {formatMoney(commissionValue)}
                     </TableCell>
 
-                    {/* Botão de Ação */}
                     <TableCell className="text-right">
                       <Button
                         size="sm"
@@ -184,13 +194,11 @@ export function AffiliateProductsTable({
                       >
                         {copiedId === item.id ? (
                           <>
-                            <Check className="mr-2 h-3 w-3" />
-                            Copiado
+                            <Check className="mr-2 h-3 w-3" /> Copiado
                           </>
                         ) : (
                           <>
-                            <Copy className="mr-2 h-3 w-3" />
-                            Copiar Link
+                            <Copy className="mr-2 h-3 w-3" /> Copiar Link
                           </>
                         )}
                       </Button>
@@ -204,7 +212,8 @@ export function AffiliateProductsTable({
       </div>
 
       <p className="text-center text-xs text-neutral-500">
-        * As comissões são calculadas sobre o valor final da venda.
+        * As comissões são calculadas sobre o valor final pago pelo cliente
+        (considerando descontos).
       </p>
     </div>
   );
