@@ -94,8 +94,6 @@ export async function createCheckoutSession(items: CartItemInput[]) {
       for (const item of items) {
         const dbProd = dbProducts.find((p) => p.id === item.id);
 
-        // --- MUDANÇA AQUI: Alterado de 10 para 20 ---
-        // Se o produto não tiver taxa definida no banco, usa 20% como padrão
         const rate = dbProd?.affiliateRate ?? 20;
 
         const itemTotal = item.price * item.quantity;

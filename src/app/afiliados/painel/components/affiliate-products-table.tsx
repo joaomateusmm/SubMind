@@ -114,10 +114,7 @@ export function AffiliateProductsTable({
                   ? item.discountPrice
                   : item.price;
 
-                const rate =
-                  !item.affiliateRate || item.affiliateRate === 10
-                    ? 20
-                    : item.affiliateRate;
+                const rate = item.affiliateRate ?? 20;
 
                 // Calculamos a comissão
                 const commissionValue = (effectivePrice * rate) / 100;
