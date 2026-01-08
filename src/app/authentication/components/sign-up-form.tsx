@@ -218,10 +218,11 @@ const SignUpForm = ({ switchToSignIn }: { switchToSignIn?: () => void }) => {
             </Button>
 
             <div className="relative flex w-full items-center justify-center">
-              <div className="absolute w-full border-t border-white/10"></div>
-              <span className="relative bg-[#050505] px-2 text-xs text-neutral-500 uppercase">
+              <div className="w-full border-t border-white/10"></div>
+              <span className="relative w-92 px-2 text-xs text-neutral-500 uppercase">
                 Ou continue com
               </span>
+              <div className="w-full border-t border-white/10"></div>
             </div>
 
             <Button

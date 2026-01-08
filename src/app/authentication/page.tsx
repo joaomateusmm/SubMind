@@ -11,7 +11,7 @@ import SignUpForm from "./components/sign-up-form";
 type Slide = { image: string; title: string; caption: string };
 
 const Authentication = () => {
-  // --- CONTEÚDO DOS SLIDES (Mantive os caminhos, ajuste depois) ---
+  // --- CONTEÚDO DOS SLIDES ---
   const slidesData: Slide[] = [
     {
       image: "images/banner/banner-1.webp",
@@ -35,79 +35,74 @@ const Authentication = () => {
     },
   ];
 
-  const [active, setActive] = useState(0);
-  const [tabValue, setTabValue] = useState<string>("sign-in");
-  const [prevTab, setPrevTab] = useState<string | null>(null);
-  const [prevVisible, setPrevVisible] = useState(false);
-  const [activeVisible, setActiveVisible] = useState(true);
+  const [activeSlide, setActiveSlide] = useState(0);
 
-  // Lógica de Troca de Abas (Fade In/Out Suave)
-  const changeTab = (newValue: string) => {
-    if (newValue === tabValue) return;
-    setPrevTab(tabValue);
-    setPrevVisible(true);
-    setActiveVisible(false);
-    setTabValue(newValue);
+  // --- NOVA LÓGICA DE TRANSIÇÃO ---
+  const [currentForm, setCurrentForm] = useState<"sign-in" | "sign-up">(
+    "sign-in",
+  );
+  const [isFadingOut, setIsFadingOut] = useState(false);
 
-    requestAnimationFrame(() => {
-      setPrevVisible(false);
-      setActiveVisible(true);
-    });
+  const switchForm = (target: "sign-in" | "sign-up") => {
+    if (target === currentForm) return;
 
-    setTimeout(() => setPrevTab(null), 350);
+    setIsFadingOut(true);
+
+    setTimeout(() => {
+      setCurrentForm(target);
+
+      requestAnimationFrame(() => {
+        setIsFadingOut(false);
+      });
+    }, 300);
   };
 
   // Autoplay do Carrossel
   useEffect(() => {
     const id = setInterval(
-      () => setActive((s) => (s + 1) % slidesData.length),
-      5000, // Acelerei um pouco para 5s (era 10s)
+      () => setActiveSlide((s) => (s + 1) % slidesData.length),
+      5000,
     );
     return () => clearInterval(id);
   }, [slidesData.length]);
 
   return (
-    <div className="font-montserrat min-h-screen bg-[#050505] text-white">
+    <div className="font-montserrat min-h-screen bg-[#000000] text-white">
       <div className="flex h-screen w-full">
         {/* --- ESQUERDA: CARROSSEL DE IMAGENS --- */}
         <aside className="relative hidden h-screen w-[60vw] overflow-hidden lg:flex">
-          {/* Container das Imagens */}
           <div className="absolute inset-0 h-full w-full">
             {slidesData.map((slide, index) => (
               <div
                 key={index}
-                className={`absolute inset-0 h-full w-full transition-opacity duration-3000 ease-in-out ${
-                  index === active ? "opacity-100" : "opacity-0"
+                className={`absolute inset-0 h-full w-full transition-opacity duration-1000 ease-in-out ${
+                  index === activeSlide ? "opacity-100" : "opacity-0"
                 }`}
               >
-                {/* Imagem de Fundo */}
                 <div
                   className="h-full w-full bg-cover bg-center"
                   style={{ backgroundImage: `url(${slide.image})` }}
                 />
-                {/* Overlay Escuro para o Texto */}
                 <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-black/40 to-transparent" />
               </div>
             ))}
           </div>
 
-          {/* Conteúdo de Texto (Sobreposto) */}
           <div className="relative z-10 flex h-full w-full flex-col justify-end p-12 text-white">
             <h2 className="font-clash-display text-5xl font-medium tracking-wide drop-shadow-lg">
-              {slidesData[active].title}
+              {slidesData[activeSlide].title}
             </h2>
             <p className="mt-4 max-w-lg text-lg text-neutral-300 drop-shadow-md">
-              {slidesData[active].caption}
+              {slidesData[activeSlide].caption}
             </p>
 
-            {/* Indicadores (Bolinhas) */}
             <div className="mt-8 flex gap-2">
               {slidesData.map((_, idx) => (
                 <button
                   key={idx}
-                  onClick={() => setActive(idx)}
+                  onClick={() => setActiveSlide(idx)}
                   className={`h-1.5 rounded-full transition-all duration-300 ${
-                    active === idx
+                    activeSlide === idx
                       ? "w-8 bg-[#D00000]"
                       : "w-2 bg-white/30 hover:bg-white/50"
                   }`}
@@ -119,48 +114,24 @@ const Authentication = () => {
         </aside>
 
         {/* --- DIREITA: FORMULÁRIOS --- */}
-        <main className="flex h-screen w-full flex-1 flex-col items-center justify-center bg-[#050505] p-8 lg:w-[40vw]">
+        <main className="flex h-screen w-full flex-1 flex-col items-center justify-center bg-gradient-to-t from-red-900/30 via-black to-black p-8 lg:w-[40vw]">
           <div className="w-full max-w-md">
-            {/* Tabs (Controle do Estado Visual) */}
-            <Tabs
-              value={tabValue}
-              onValueChange={changeTab}
-              defaultValue="sign-in"
-              className="w-full"
-            >
-              {/* Container Relativo para Animação de Sobreposição */}
+            <Tabs value={currentForm} className="w-full">
+              {/* Container com altura mínima para evitar pulos de layout */}
               <div className="relative min-h-[600px] w-full">
-                {/* Painel Ativo (Fade In) */}
                 <div
-                  className={`absolute inset-0 w-full transition-all duration-500 ease-out ${
-                    activeVisible
-                      ? "blur-0 translate-x-0 opacity-100"
-                      : "translate-x-4 opacity-0 blur-sm"
+                  className={`transition-all duration-300 ease-in-out ${
+                    isFadingOut
+                      ? "translate-x-4 opacity-0" // Estado Saindo
+                      : "translate-x-0 opacity-100" // Estado Entrando/Visível
                   }`}
                 >
-                  {tabValue === "sign-in" ? (
-                    <SignInForm switchToSignUp={() => changeTab("sign-up")} />
+                  {currentForm === "sign-in" ? (
+                    <SignInForm switchToSignUp={() => switchForm("sign-up")} />
                   ) : (
-                    <SignUpForm switchToSignIn={() => changeTab("sign-in")} />
+                    <SignUpForm switchToSignIn={() => switchForm("sign-in")} />
                   )}
                 </div>
-
-                {/* Painel Anterior (Fade Out) - Garante a suavidade na troca */}
-                {prevTab && (
-                  <div
-                    className={`pointer-events-none absolute inset-0 w-full transition-all duration-500 ease-in ${
-                      prevVisible
-                        ? "blur-0 translate-x-0 opacity-100"
-                        : "-translate-x-4 opacity-0 blur-sm"
-                    }`}
-                  >
-                    {prevTab === "sign-in" ? (
-                      <SignInForm switchToSignUp={() => {}} />
-                    ) : (
-                      <SignUpForm switchToSignIn={() => {}} />
-                    )}
-                  </div>
-                )}
               </div>
             </Tabs>
           </div>
