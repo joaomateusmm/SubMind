@@ -71,7 +71,7 @@ export async function POST(request: Request) {
         // A. Marca a comissão como disponível
         await db
           .update(commission)
-          .set({ status: "available" })
+          .set({ status: "paid" })
           .where(eq(commission.id, pendingCommission.id));
 
         // B. Atualiza o saldo do afiliado (Soma atômica para evitar erros de cálculo)

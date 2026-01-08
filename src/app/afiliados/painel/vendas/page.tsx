@@ -45,11 +45,12 @@ export default async function AffiliateSalesPage() {
       minute: "2-digit",
     }).format(date);
 
-  // Calcula total vendido nesta página (apenas para exibição rápida se quiser)
-  const totalCommissionValue = commissionsList.reduce(
-    (acc, curr) => acc + curr.amount,
-    0,
-  );
+  // --- CORREÇÃO AQUI ---
+  // Calcula total excluindo as canceladas.
+  // (Opcional: Se quiser somar apenas as pagas, mude a condição para === 'paid')
+  const totalCommissionValue = commissionsList
+    .filter((c) => c.status !== "canceled")
+    .reduce((acc, curr) => acc + curr.amount, 0);
 
   return (
     <div className="space-y-8 px-6 py-8 md:px-16">
@@ -81,7 +82,7 @@ export default async function AffiliateSalesPage() {
 
       <div className="h-[1px] w-full bg-white/5" />
 
-      {/* LISTA DE VENDAS (SEU SNIPPET AQUI) */}
+      {/* LISTA DE VENDAS */}
       <div className="overflow-hidden rounded-xl border border-white/10 bg-[#191919]">
         <div className="border-b border-white/10 px-6 py-4">
           <h3 className="font-semibold text-white">Histórico de Transações</h3>
@@ -100,45 +101,55 @@ export default async function AffiliateSalesPage() {
             </div>
           ) : (
             <ul className="space-y-0 divide-y divide-white/5">
-              {commissionsList.map((comm) => (
-                <li
-                  key={comm.id}
-                  className="flex flex-col gap-2 py-4 transition-colors hover:bg-white/[0.02] sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="flex flex-col gap-1">
-                    <span className="font-medium text-neutral-200">
-                      {comm.description || "Comissão de Venda"}
-                    </span>
-                    <span className="text-xs text-neutral-500">
-                      {formatDate(comm.createdAt)}
-                    </span>
-                  </div>
+              {commissionsList.map((comm) => {
+                // Lógica Auxiliar para determinar status visual
+                // Aceita "paid" OU "available" como Sucesso
+                const isPaid =
+                  comm.status === "paid" || comm.status === "available";
+                const isPending = comm.status === "pending";
 
-                  <div className="flex items-center justify-between gap-4 sm:justify-end">
-                    <div className="text-right">
-                      <span className="block text-lg font-bold text-green-400">
-                        + {formatCurrency(comm.amount)}
+                return (
+                  <li
+                    key={comm.id}
+                    className="flex flex-col gap-2 py-4 transition-colors hover:bg-white/[0.02] sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="flex flex-col gap-1">
+                      <span className="font-medium text-neutral-200">
+                        {comm.description || "Comissão de Venda"}
+                      </span>
+                      <span className="text-xs text-neutral-500">
+                        {formatDate(comm.createdAt)}
                       </span>
                     </div>
 
-                    <div
-                      className={`rounded-full px-3 py-1 text-xs font-medium ${
-                        comm.status === "pending"
-                          ? "bg-yellow-500/10 text-yellow-500"
-                          : comm.status === "paid"
-                            ? "bg-green-500/10 text-green-500"
-                            : "bg-red-500/10 text-red-500"
-                      }`}
-                    >
-                      {comm.status === "pending"
-                        ? "Pendente"
-                        : comm.status === "paid"
-                          ? "Pago"
-                          : "Cancelado"}
+                    <div className="flex items-center justify-between gap-4 sm:justify-end">
+                      <div className="text-right">
+                        <span
+                          className={`block text-lg font-bold ${
+                            comm.status === "canceled"
+                              ? "text-neutral-500 line-through"
+                              : "text-green-400"
+                          }`}
+                        >
+                          + {formatCurrency(comm.amount)}
+                        </span>
+                      </div>
+
+                      <div
+                        className={`rounded-full px-3 py-1 text-xs font-medium ${
+                          isPending
+                            ? "bg-yellow-500/10 text-yellow-500"
+                            : isPaid
+                              ? "bg-green-500/10 text-green-500"
+                              : "bg-red-500/10 text-red-500"
+                        }`}
+                      >
+                        {isPending ? "Pendente" : isPaid ? "Pago" : "Cancelado"}
+                      </div>
                     </div>
-                  </div>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
