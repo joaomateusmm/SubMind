@@ -52,7 +52,7 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
     <div className="flex min-h-screen flex-col bg-[#010000]">
       <Header />
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-32 md:px-8">
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-42 md:px-8">
         {/* --- CABEÇALHO DA CATEGORIA --- */}
         <div className="mb-12 flex flex-col gap-4">
           <Link

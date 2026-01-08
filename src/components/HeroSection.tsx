@@ -15,12 +15,36 @@ import { ShinyButton } from "@/components/ui/shiny-button";
 
 export default function HeroSection() {
   const partnerLogos = [
-    { src: "/images/icons/fivem.svg", alt: "Contas fivem", href: "/" },
-    { src: "/images/icons/roblox.svg", alt: "Roblox", href: "/" },
-    { src: "/images/icons/valorant.svg", alt: "Valorant", href: "/" },
-    { src: "/images/icons/discord.svg", alt: "Contas Discord", href: "/" },
-    { src: "/images/icons/netflix.svg", alt: "Contas Netflix", href: "/" },
-    { src: "/images/icons/amazom.svg", alt: "Contas Amazon", href: "/" },
+    {
+      src: "/images/icons/fivem.svg",
+      alt: "Contas fivem",
+      href: "https://sub-mind-sand.vercel.app/jogos/fivem",
+    },
+    {
+      src: "/images/icons/roblox.svg",
+      alt: "Roblox",
+      href: "https://sub-mind-sand.vercel.app/jogos/roblox",
+    },
+    {
+      src: "/images/icons/valorant.svg",
+      alt: "Valorant",
+      href: "https://sub-mind-sand.vercel.app/jogos/valorant",
+    },
+    {
+      src: "/images/icons/discord.svg",
+      alt: "Contas Discord",
+      href: "https://sub-mind-sand.vercel.app/categorias/contas",
+    },
+    {
+      src: "/images/icons/netflix.svg",
+      alt: "Contas Netflix",
+      href: "https://sub-mind-sand.vercel.app/streamings/netflix",
+    },
+    {
+      src: "/images/icons/amazom.svg",
+      alt: "Contas Prime Vídeo",
+      href: "https://sub-mind-sand.vercel.app/streamings/prime-video",
+    },
   ];
 
   return (

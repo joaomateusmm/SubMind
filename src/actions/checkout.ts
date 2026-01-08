@@ -110,7 +110,7 @@ export async function createCheckoutSession(items: CartItemInput[]) {
           affiliateId: activeAffiliate.id,
           orderId: newOrder.id,
           amount: totalCommission,
-          status: "pending", // Importante: Começa pendente até o pagamento ser confirmado
+          status: "pending", 
           description: `Venda via link de afiliado: ${affiliateCode}`,
         });
 

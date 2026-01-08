@@ -4,7 +4,6 @@ import { db } from "@/db";
 import { category, product } from "@/db/schema";
 
 import { ProductCard } from "./ProductCard"; // <--- Importamos o novo componente
-import { Button } from "./ui/button";
 
 export default async function ProductCatalog() {
   const allCategories = await db.select().from(category);
@@ -69,16 +68,6 @@ export default async function ProductCatalog() {
             ))}
           </div>
         )}
-
-        {/* Botão Ver Tudo */}
-        <div className="mt-20 flex justify-center">
-          <Button
-            variant="outline"
-            className="font-montserrat h-12 border-white/10 bg-transparent px-8 text-white hover:border-white/30 hover:bg-white/5 hover:text-white"
-          >
-            Ver Todos os Produtos
-          </Button>
-        </div>
       </div>
     </section>
   );
