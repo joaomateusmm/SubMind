@@ -14,22 +14,23 @@ const Authentication = () => {
   // --- CONTEÚDO DOS SLIDES ---
   const slidesData: Slide[] = [
     {
-      image: "images/banner/banner-1.webp",
+      // CORREÇÃO: Adicionada a barra "/" no início de todos os caminhos
+      image: "/images/banner/banner-1.webp",
       title: "Domine seu Jogo",
       caption: "Acesse as melhores configs privadas e eleve seu nível.",
     },
     {
-      image: "images/banner/banner-2.webp",
+      image: "/images/banner/banner-2.webp",
       title: "Exclusividade e Segurança",
       caption: "Produtos testados e aprovados por milhares de clientes.",
     },
     {
-      image: "images/banner/banner-3.webp",
+      image: "/images/banner/banner-3.webp",
       title: "Comunidade Premium",
       caption: "Junte-se à elite dos jogadores e tenha suporte dedicado.",
     },
     {
-      image: "images/banner/banner-4.webp",
+      image: "/images/banner/banner-4.webp",
       title: "Contas Exclusivas",
       caption: "Obtenha as melhores contas para começar nos jogos com estilo.",
     },
