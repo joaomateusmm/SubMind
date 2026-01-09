@@ -4,7 +4,14 @@ import { eq, inArray } from "drizzle-orm";
 import { cookies, headers } from "next/headers";
 
 import { db } from "@/db";
-import { affiliate, commission, order, orderItem, product } from "@/db/schema";
+import {
+  affiliate,
+  commission,
+  order,
+  orderItem,
+  product,
+  user,
+} from "@/db/schema";
 import { auth } from "@/lib/auth";
 
 // Tipo esperado dos itens do carrinho
@@ -16,37 +23,86 @@ type CartItemInput = {
   image?: string;
 };
 
-export async function createCheckoutSession(items: CartItemInput[]) {
+export async function createCheckoutSession(
+  items: CartItemInput[],
+  guestInfo?: { email: string; name: string },
+) {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
 
-  if (!session) {
-    throw new Error("Usuário não autenticado");
+  let userId: string;
+  let userEmail: string;
+  let userName: string;
+
+  // --- LÓGICA DE IDENTIFICAÇÃO DO USUÁRIO ---
+  if (session) {
+    // CASO A: Usuário Logado
+    userId = session.user.id;
+    userEmail = session.user.email;
+    userName = session.user.name;
+  } else {
+    // CASO B: Visitante (Guest)
+    if (!guestInfo?.email) {
+      throw new Error(
+        "É necessário fazer login ou informar um e-mail para continuar.",
+      );
+    }
+
+    const email = guestInfo.email.toLowerCase();
+
+    const existingUser = await db.query.user.findFirst({
+      where: eq(user.email, email),
+    });
+
+    if (existingUser) {
+      userId = existingUser.id;
+      userEmail = existingUser.email;
+      userName = existingUser.name;
+    } else {
+      // CASO C: Criar novo usuário (CORREÇÃO APLICADA AQUI)
+      // Como o schema do User não tem defaults, precisamos passar tudo manualmente
+      const newUserId = crypto.randomUUID();
+      const now = new Date();
+
+      const [newUser] = await db
+        .insert(user)
+        .values({
+          id: newUserId, // <--- Adicionado: ID Manual
+          name: guestInfo.name || "Cliente Visitante",
+          email: email,
+          image: "",
+          emailVerified: false,
+          createdAt: now, // <--- Adicionado: Data Manual
+          updatedAt: now, // <--- Adicionado: Data Manual
+          role: "user", // Opcional, mas bom garantir
+        })
+        .returning();
+
+      userId = newUser.id;
+      userEmail = newUser.email;
+      userName = newUser.name;
+    }
   }
+  // -----------------------------------------------------------
 
-  const user = session.user;
-
-  // --- 1. LÓGICA DE AFILIADOS (INÍCIO) ---
+  // --- LÓGICA DE AFILIADOS ---
   const cookieStore = await cookies();
   const affiliateCode = cookieStore.get("affiliate_code")?.value;
 
   let activeAffiliate = null;
 
   if (affiliateCode) {
-    // Busca o afiliado pelo código do cookie
     activeAffiliate = await db.query.affiliate.findFirst({
       where: eq(affiliate.code, affiliateCode),
     });
 
-    // Opcional: Impedir que o afiliado ganhe comissão da própria compra
-    if (activeAffiliate && activeAffiliate.userId === user.id) {
+    if (activeAffiliate && activeAffiliate.userId === userId) {
       activeAffiliate = null;
     }
   }
-  // --- FIM LÓGICA DE AFILIADOS (PARTE 1) ---
 
-  // 2. Calcular Total e garantir inteiro
+  // 2. Calcular Total
   const totalAmount = Math.round(
     items.reduce((acc, item) => acc + item.price * item.quantity, 0),
   );
@@ -55,17 +111,17 @@ export async function createCheckoutSession(items: CartItemInput[]) {
     throw new Error("O valor mínimo para transação é R$ 1,00");
   }
 
-  // 3. Criar Pedido no Banco
+  // 3. Criar Pedido
   const [newOrder] = await db
     .insert(order)
     .values({
-      userId: user.id,
+      userId: userId,
       amount: totalAmount,
       status: "pending",
     })
     .returning();
 
-  // 4. Salvar Itens do Pedido
+  // 4. Salvar Itens
   await db.insert(orderItem).values(
     items.map((item) => ({
       orderId: newOrder.id,
@@ -77,10 +133,9 @@ export async function createCheckoutSession(items: CartItemInput[]) {
     })),
   );
 
-  // --- 5. CALCULAR E SALVAR COMISSÃO (IMPORTANTE) ---
+  // --- 5. CALCULAR E SALVAR COMISSÃO ---
   if (activeAffiliate) {
     try {
-      // Precisamos buscar os produtos reais no DB para pegar a % de comissão (affiliateRate)
       const productIds = items.map((i) => i.id);
 
       const dbProducts = await db
@@ -90,19 +145,14 @@ export async function createCheckoutSession(items: CartItemInput[]) {
 
       let totalCommission = 0;
 
-      // Calcula comissão item por item
       for (const item of items) {
         const dbProd = dbProducts.find((p) => p.id === item.id);
-
         const rate = dbProd?.affiliateRate ?? 20;
-
         const itemTotal = item.price * item.quantity;
         const commissionValue = Math.round(itemTotal * (rate / 100));
-
         totalCommission += commissionValue;
       }
 
-      // Se gerou comissão maior que 0, salva no banco
       if (totalCommission > 0) {
         await db.insert(commission).values({
           affiliateId: activeAffiliate.id,
@@ -111,20 +161,18 @@ export async function createCheckoutSession(items: CartItemInput[]) {
           status: "pending",
           description: `Venda via link de afiliado: ${affiliateCode}`,
         });
+        console.log(`✅ Comissão registrada para ${affiliateCode}`);
 
-        console.log(
-          `✅ Comissão de ${(totalCommission / 100).toFixed(2)} registrada para ${affiliateCode}`,
-        );
+        cookieStore.delete("affiliate_code");
       }
     } catch (error) {
       console.error("Erro ao gerar comissão:", error);
     }
   }
-  // --- FIM LÓGICA DE AFILIADOS ---
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
-  // 6. Preparar Payload LIMPO para InfinitePay
+  // 6. Payload InfinitePay
   const infinitePayPayload = {
     handle: process.env.INFINITEPAY_HANDLE,
     order_nsu: newOrder.id,
@@ -137,12 +185,12 @@ export async function createCheckoutSession(items: CartItemInput[]) {
       description: item.name.substring(0, 250),
     })),
     customer: {
-      name: user.name,
-      email: user.email,
+      name: userName,
+      email: userEmail,
     },
     address: {
-      line1: "Produto Digital - Entrega via Email",
-      line2: "Loja SubMind",
+      line1: "Produto Digital",
+      line2: "SubMind",
       zip: "60000000",
       city: "Fortaleza",
       state: "CE",
@@ -150,7 +198,7 @@ export async function createCheckoutSession(items: CartItemInput[]) {
     },
     metadata: {
       source: "submind_site",
-      user_id: user.id,
+      user_id: userId,
       affiliate_id: activeAffiliate?.id || "",
     },
   };
@@ -160,9 +208,7 @@ export async function createCheckoutSession(items: CartItemInput[]) {
       "https://api.infinitepay.io/invoices/public/checkout/links",
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(infinitePayPayload),
       },
     );
